@@ -1,0 +1,6 @@
+@AuthService_HostAddress = http://localhost:5158
+
+POST {{AuthService_HostAddress}}/api/Auth/register/
+Accept: application/json
+
+###
