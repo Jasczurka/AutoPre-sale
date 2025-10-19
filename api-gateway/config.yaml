@@ -1,0 +1,33 @@
+server:
+  port: 8080
+  shutdown_timeout_seconds: 10
+  jwt_secret: "REPLACE_WITH_STRONG_SECRET"
+
+consul:
+  address: "http://consul:8500"
+  timeout_seconds: 3
+
+routes:
+  - path_prefix: /auth
+    service_name: auth-service
+    auth_required: false
+
+  - path_prefix: /projects
+    service_name: project-service
+    auth_required: false
+
+  - path_prefix: /analysis
+    service_name: document-analysis
+    auth_required: true
+
+  - path_prefix: /backlog
+    service_name: backlog-service
+    auth_required: true
+
+  - path_prefix: /templates
+    service_name: template-service
+    auth_required: true
+
+  - path_prefix: /presentations
+    service_name: presentation-service
+    auth_required: true

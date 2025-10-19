@@ -1,12 +1,8 @@
-module github.com/Jasczurka/AutoPre-sale/api-gateway
+module project-service
 
-go 1.25
+go 1.20
 
-require (
-	github.com/golang-jwt/jwt/v5 v5.2.0
-	github.com/hashicorp/consul/api v1.16.0
-	gopkg.in/yaml.v3 v3.0.1
-)
+require github.com/hashicorp/consul/api v1.16.0
 
 require (
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect

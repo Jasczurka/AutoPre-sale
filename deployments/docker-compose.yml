@@ -1,0 +1,36 @@
+version: "3.8"
+services:
+  consul:
+    image: hashicorp/consul:latest
+    container_name: consul
+    ports:
+      - "8500:8500"
+    command: ["consul", "agent", "-dev", "-client=0.0.0.0"]
+    networks:
+      - autopresale
+
+  project-service:
+    build: ../mock-services/project-service
+    container_name: project-service
+    depends_on:
+      - consul
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+    networks:
+      - autopresale
+
+  api-gateway:
+    build: ../api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - consul
+      - project-service
+    networks:
+      - autopresale
+
+
+networks:
+  autopresale:
+    driver: bridge
