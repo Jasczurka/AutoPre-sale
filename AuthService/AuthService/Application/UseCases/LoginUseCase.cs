@@ -30,7 +30,7 @@ public class LoginUseCase
         }
 
         var hashedPassword = _cryptographyService.HashPassword(request.Password, user.Salt);
-        if (hashedPassword != user.PasswordHash)
+        if (System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(hashedPassword, user.PasswordHash))
         {
             return Result<LoginResponse, LoginError>.Fail(LoginError.InvalidCredentials);
         }
