@@ -39,6 +39,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<RegisterUseCase>();
 builder.Services.AddScoped<RefreshTokenUseCase>();
 builder.Services.AddScoped<LoginUseCase>();
+builder.Services.AddScoped<GetMeUseCase>();
 builder.Services.AddControllers();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
