@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using AuthService.Application.DTOs;
 using AuthService.Application.UseCases;
 using AuthService.Data;
@@ -20,14 +22,16 @@ public class AuthController : ControllerBase
     private readonly RegisterUseCase _registerUseCase;
     private readonly RefreshTokenUseCase _refreshTokenUseCase;
     private readonly LoginUseCase _loginUseCase;
+    private readonly GetMeUseCase _getMeUseCase;
 
-    public AuthController(AppDbContext db, ITokenService tokenService, RegisterUseCase registerUseCase, RefreshTokenUseCase refreshTokenUseCase, LoginUseCase loginUseCase)
+    public AuthController(AppDbContext db, ITokenService tokenService, RegisterUseCase registerUseCase, RefreshTokenUseCase refreshTokenUseCase, LoginUseCase loginUseCase, GetMeUseCase getMeUseCase)
     {
         _db = db;
         _tokenService = tokenService;
         _registerUseCase = registerUseCase;
         _refreshTokenUseCase = refreshTokenUseCase;
         _loginUseCase = loginUseCase;
+        _getMeUseCase = getMeUseCase;
     }
 
     [HttpPost("register")]
@@ -76,6 +80,24 @@ public class AuthController : ControllerBase
             }
             return BadRequest(new { error = error?.Message ?? "Ошибка обновления токена", code = error?.Code ?? "unknown" });
         }
+        return Ok(result.Value);
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetMe()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { error = "User id not found in token" });
+
+        var result = await _getMeUseCase.Execute(userId);
+        if (!result.IsSuccess)
+        {
+            var error = result.Error;
+            return NotFound(new { error = error?.Message, code = error?.Code });
+        }
+
         return Ok(result.Value);
     }
     

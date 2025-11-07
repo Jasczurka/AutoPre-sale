@@ -19,10 +19,16 @@ public class UserRepository : IUserRepository
         var test = await _db.Users.AnyAsync(u => u.Email == email);
         return test;
     }
-
+    
     public async Task<User?> GetUserByEmail(string email)
     {
         return await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+    }
+
+    public async Task<User?> GetUserById(string id)
+    {
+        var user = await _db.Users.FindAsync(Guid.Parse(id));
+        return user;
     }
 
     public async Task AddUserAsync(User user)
@@ -34,7 +40,7 @@ public class UserRepository : IUserRepository
     public async Task UpdateUserAsync(User user)
     {
         _db.Users.Update(user);
-        _db.Users.Find(user.Id)!.UpdatedAt = DateTime.UtcNow;
+        (await _db.Users.FindAsync(user.Id))!.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
