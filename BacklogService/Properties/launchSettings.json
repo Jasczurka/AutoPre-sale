@@ -1,0 +1,28 @@
+﻿{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5273",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "S3_SERVICE_URL": "https://s3.yandexcloud.net",
+        "S3_REGION": "ru-central1",
+        "S3_ACCESS_KEY": "",
+        "S3_SECRET_KEY": "",
+        "S3_BUCKET": "projects"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7276;http://localhost:5273",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
