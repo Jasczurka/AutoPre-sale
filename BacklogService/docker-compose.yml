@@ -16,8 +16,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-
+      
+      
+  backlogservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5159:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=backlogdb;Username=postgres;Password=1234
+      - ASPNETCORE_ENVIRONMENT=Development
+      - S3_SERVICE_URL=https://s3.yandexcloud.net
+      - S3_REGION=ru-central1"
+      - S3_ACCESS_KEY=ACCESSKEY
+      - S3_SECRET_KEY=SECRETKEY
+      - S3_BUCKET=projects
 volumes:
   postgres_data:
 
