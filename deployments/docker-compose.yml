@@ -1,0 +1,134 @@
+services:
+  consul:
+    image: hashicorp/consul:1.18
+    container_name: consul
+    ports:
+      - "8500:8500"
+    volumes:
+      - ./consul/config.json:/consul/config/config.json
+    command: consul agent -dev -client=0.0.0.0 -config-file=/consul/config/config.json
+    networks:
+      - app-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - app-network
+
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: postgres-auth
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: authdb
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: autopresale
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  api-gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      CONSUL_ADDRESS: consul:8500
+      JWT_SECRET: "your-secret-key-change-in-production"
+      AUTH_SERVICE: "auth-service"
+    depends_on:
+      - consul
+    volumes:
+      - ../api-gateway/config.yaml:/app/config.yaml
+    networks:
+      - app-network
+
+  mock-service:
+    build:
+      context: ../mock-service
+      dockerfile: Dockerfile
+    container_name: mock-service
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      CONSUL_ADDRESS: consul:8500
+    depends_on:
+      - consul
+    networks:
+      - app-network
+
+  auth-service:
+    build:
+      context: ../AuthService/AuthService
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "5158:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres-auth;Port=5432;Database=authdb;Username=postgres;Password=1234
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Jwt__Issuer=AuthService
+      - Jwt__Audience=ApiClients
+      - Jwt__AccessTokenLifetimeMinutes=30
+      - Jwt__RefreshTokenLifetimeDays=7
+      - Jwt__PrivateKey=MIIEpQIBAAKCAQEAy3wuQ1UkUrcEaxR+1gVEEUigRdJthoFenMC/BhpB7y5pelrpoNxdHhAWDuHwOYvj70ZuRxlf2I5Gl+nuVTFQG0P7uS7coVT2zcrzBZp5WNs5LzWea2f5GyFOCtFeXH4fMqfIJdJs+y8+o2luQx4OdZkPJ9sTuRTywDEd92smwY0kqAtLa1ejuFmvB207qCJNKYgvYpgDXdYA5tgZxtepozTTbEBkYk14XETmK2GOgIR3B8PixfEFM2EK6oIqrtKEh020h1FiYVZNWlDmvpwWJxgNoaDoCvAay7jGDwn76Gu8rqTkkHaodNZ5QPasHuk6xqhnMCcYh2NBo9+rV290rQIDAQABAoIBAQCVGMR9KaGXyeo+26GkB++8Ck8FWg5Og/RjPwe43Px62LMIqByPdWf1YywGc56lS88Tv7OF/R2xe25WWV38pklf8Qw8wA2BWNQOLiqrbGiFpvvbj5oocOKh8mFQo+BUPUV2xGFu9SRNWGy5J8NXAmrt19y3A1sMPkEweczPQYAASLCYZP3gVHP2d3aaoXX8BXBTGABZTp01TooxQmu2FP9UbQl7/nwjQ8QzP1sENx4zSGe4oaQI4ejn35q9vB29y8rH4v4EmmmuQQJqVScizyUJvz/lVA9tltx/itMgauiWYY/JHUFphO72cIRhIP1tvYeM0ZP0M8jBHmBmiEjrbcCxAoGBAOF9Z+BLDuUrrQ0/sCFrM6KjfugRo4mzJacLTAzMj9BaCWdzWiZd24K9l2JGZOj+oQmCZOYi3NldLIhFPXj9E2KSdnKSs0NuzjMg9fjaNwzAcy1SSIBxf5CPMS78lERU2rjblxlgQh1hOohClYx38BHlq38Cv/bIOz/dq462pFDbAoGBAOcEkNUv1q2lHX8d6RH6QPoEri76Yhy2woWoukbkZeMsOvp6YbBUEjctK41NBHsk69W/1d3698HuFfW0hXsHkcBKyk21HHTA374KvgQiPqdNwcMXpWc6YmQIEzrOJZMP5dp2SXelSQiTBob7Ju/Zfxd3MPok9bO1LlqAG0AdDuMXAoGBAIa0cwyz6jcPq3bBuEeOki8zusmKWAcX5YNwJUN0JOnUD9AkQhOveEYXWstTwE7MZomWww4Uf5i+p67Upk+T6DO3yVjSuJKtLDOxGiBKxB4zDdtiT3uj0hAa6sfmDfDwPCW40QBQ185TWjMyi8J5mAopCRV8IA+eOH8Dvswn4euHAoGAcC33Zo5kYM3dFO0hUGmFQ+Mh8g4Dto3Ix763NdWS5E2GFjt3VHh+n+x/SY4srt+u5YzR/Yjw5msGntmaN7PlQssOkc1wlAFUpKPywW8fnX5UqLfCye2/+XMyY0vXUyJVK1BlPIQ2gsNiWAl9Ttr+rBZk4hMwfKNubuPmV6vEnuECgYEAo2AHJrLnJJ2TlS+gsjP9jOuAvDCVTVEnTd4qAlRH5jC/Dv8cUikJw492giGi9xXhGBb3W1CpJRGyBk/cWgpekbvrOzdWruLfoAfArUtQfDZjJN+Szi3qm6lqqoSUjiNdS6cK2EuJep+cBYxxIBcSWDvtMEZojYK1TnKTV9H2C6g=
+      - Jwt__PublicKey=MIIBCgKCAQEAy3wuQ1UkUrcEaxR+1gVEEUigRdJthoFenMC/BhpB7y5pelrpoNxdHhAWDuHwOYvj70ZuRxlf2I5Gl+nuVTFQG0P7uS7coVT2zcrzBZp5WNs5LzWea2f5GyFOCtFeXH4fMqfIJdJs+y8+o2luQx4OdZkPJ9sTuRTywDEd92smwY0kqAtLa1ejuFmvB207qCJNKYgvYpgDXdYA5tgZxtepozTTbEBkYk14XETmK2GOgIR3B8PixfEFM2EK6oIqrtKEh020h1FiYVZNWlDmvpwWJxgNoaDoCvAay7jGDwn76Gu8rqTkkHaodNZ5QPasHuk6xqhnMCcYh2NBo9+rV290rQIDAQAB
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  postgres_auth_data:
+

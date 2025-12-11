@@ -1,0 +1,16 @@
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+consul:
+  address: "consul:8500"
+  datacenter: "dc1"
+
+jwt:
+  secret: "your-secret-key-change-in-production"
+  auth_service: "auth-service"
+
+logging:
+  level: "info"
+  format: "json"
+
