@@ -29,7 +29,10 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     networks:
@@ -124,6 +127,81 @@ services:
     networks:
       - app-network
 
+  postgres-document-analysis:
+    image: postgres:15-alpine
+    container_name: postgres-document-analysis
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: document_analysis_db
+    volumes:
+      - postgres_document_analysis_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  document-analysis-service:
+    build:
+      context: ../document-analysis-service
+      dockerfile: Dockerfile
+    container_name: document-analysis-service
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:1234@postgres-document-analysis:5432/document_analysis_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_CONSUMER_GROUP=document-analysis-service
+      - KAFKA_TOPIC_FILE_UPLOADED=file-uploaded
+      - KAFKA_TOPIC_BACKLOG_READY=backlog-ready
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET_NAME=documents
+      - MINIO_SECURE=false
+      - MISTRAL_API_KEY=bm7Pnu8yQAyyWdKbPv2mNyibNGXS4xfc
+      - MISTRAL_AGENT_ID=ag_019b0f13cd877458a827a788e6857c60
+      - MISTRAL_AGENT_TKP_ID=ag_019b0fcd619d7542b255b47153ab2d5b
+      - SERVICE_NAME=document-analysis-service
+      - LOG_LEVEL=INFO
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    depends_on:
+      postgres-document-analysis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
@@ -131,4 +209,6 @@ networks:
 volumes:
   postgres_data:
   postgres_auth_data:
+  postgres_document_analysis_data:
+  minio_data:
 

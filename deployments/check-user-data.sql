@@ -7,3 +7,4 @@ SELECT
 FROM "Users" 
 WHERE "Email" = 'test@example.com';
 
+
