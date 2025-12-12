@@ -25,8 +25,10 @@ public class GetBacklogUseCase
         var works = await _repo.GetHierarchyByProjectIdAsync(projectId);
         var worksList = works.ToList();
 
+        // Если нет работ - это нормально, возвращаем пустой список
+        // Бэклог может быть еще не создан для проекта
         if (!worksList.Any())
-            return Result<List<WorkDto>, GetBacklogError>.Fail(GetBacklogError.ProjectNotFound);
+            return Result<List<WorkDto>, GetBacklogError>.Success(new List<WorkDto>());
 
         var dtos = worksList.Where(w => w.ParentId == null).Select(MapToDto).OrderBy(dto => ParseWorkNumber(dto.WorkNumber).Last()).ToList();
 

@@ -1,5 +1,0 @@
-const useRegistrationPresenter = () => {
-
-}
-
-export { useRegistrationPresenter }

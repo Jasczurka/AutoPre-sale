@@ -4,13 +4,14 @@
 # 3. Upload TZ file
 # 4. Check Kafka event publication
 # 5. Check document-analysis-service processing
-# 6. Check file in MinIO
+# 6. Check BacklogService receives backlog from Kafka
+# 7. Check file in MinIO
 
 Write-Host "=== FULL SYSTEM CYCLE TEST ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Step 1: User registration
-Write-Host "[1/6] User registration..." -ForegroundColor Yellow
+Write-Host "[1/7] User registration..." -ForegroundColor Yellow
 $registerBody = @{
     email = "test@example.com"
     password = "Test123!"
@@ -19,6 +20,7 @@ $registerBody = @{
 } | ConvertTo-Json
 
 try {
+    # Using direct service call due to API Gateway routing issue (will be fixed)
     $registerResponse = Invoke-RestMethod -Uri "http://localhost:5158/api/Auth/register" -Method Post -Body $registerBody -ContentType "application/json"
     Write-Host "OK: User registered" -ForegroundColor Green
 } catch {
@@ -31,13 +33,14 @@ try {
 }
 
 # Step 2: Login
-Write-Host "[2/6] Login..." -ForegroundColor Yellow
+Write-Host "[2/7] Login..." -ForegroundColor Yellow
 $loginBody = @{
     email = "test@example.com"
     password = "Test123!"
 } | ConvertTo-Json
 
 try {
+    # Using direct service call due to API Gateway routing issue (will be fixed)
     $loginResponse = Invoke-RestMethod -Uri "http://localhost:5158/api/Auth/login" -Method Post -Body $loginBody -ContentType "application/json"
     $token = $loginResponse.accessToken
     Write-Host "OK: Token received" -ForegroundColor Green
@@ -47,7 +50,7 @@ try {
 }
 
 # Step 3: Create project
-Write-Host "[3/6] Creating project..." -ForegroundColor Yellow
+Write-Host "[3/7] Creating project..." -ForegroundColor Yellow
 $projectBody = @{
     name = "Test Project " + (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
     description = "Project for testing TZ upload"
@@ -61,6 +64,7 @@ $headers = @{
 }
 
 try {
+    # Using direct service call due to API Gateway routing issue (will be fixed)
     $projectResponse = Invoke-RestMethod -Uri "http://localhost:5159/api/Projects" -Method Post -Body $projectBody -Headers $headers
     $projectId = $projectResponse.id
     Write-Host "OK: Project created: $projectId" -ForegroundColor Green
@@ -76,7 +80,7 @@ try {
 }
 
 # Step 4: Create test TZ file
-Write-Host "[4/6] Creating test TZ file..." -ForegroundColor Yellow
+Write-Host "[4/7] Creating test TZ file..." -ForegroundColor Yellow
 $testFileContent = "TECHNICAL SPECIFICATION`n`n1. GENERAL INFORMATION`nProject: Project Management System`nGoal: Business Process Automation`n`n2. REQUIREMENTS`n2.1. Functional Requirements`n- Project Management`n- Task Management`n- Reporting`n`n2.2. Non-Functional Requirements`n- Performance: 1000 requests/sec`n- Security: Data encryption`n- Scalability: Horizontal scaling`n`n3. TECHNOLOGY STACK`n- Backend: .NET 8.0`n- Frontend: React`n- Database: PostgreSQL`n- Message Queue: Kafka`n- Storage: MinIO"
 
 $testFilePath = "$env:TEMP\test_tz.txt"
@@ -84,7 +88,7 @@ $testFileContent | Out-File -FilePath $testFilePath -Encoding UTF8 -NoNewline
 Write-Host "OK: Test file created: $testFilePath" -ForegroundColor Green
 
 # Step 5: Upload TZ file
-Write-Host "[5/6] Uploading TZ file to project..." -ForegroundColor Yellow
+Write-Host "[5/7] Uploading TZ file to project..." -ForegroundColor Yellow
 
 # Create multipart form data
 $boundary = [System.Guid]::NewGuid().ToString()
@@ -107,6 +111,7 @@ $uploadHeaders = @{
 }
 
 try {
+    # Using direct service call due to API Gateway routing issue (will be fixed)
     $uploadResponse = Invoke-RestMethod -Uri "http://localhost:5159/api/Projects/$projectId/documents" -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -Headers $uploadHeaders -ContentType "multipart/form-data; boundary=$boundary"
     $documentId = $uploadResponse.id
     $fileUrl = $uploadResponse.fileUrl
@@ -124,9 +129,9 @@ try {
 }
 
 # Step 6: Wait for processing
-Write-Host "[6/6] Waiting for document-analysis-service processing..." -ForegroundColor Yellow
-Write-Host "  Waiting 30 seconds for processing..." -ForegroundColor Gray
-Start-Sleep -Seconds 30
+Write-Host "[6/7] Waiting for document-analysis-service processing..." -ForegroundColor Yellow
+Write-Host "  Waiting 45 seconds for processing and backlog import..." -ForegroundColor Gray
+Start-Sleep -Seconds 45
 
 # Check results
 Write-Host ""
@@ -148,6 +153,12 @@ if ($logs -match "Analysis completed successfully") {
     Write-Host "WARN: Analysis not completed or still running" -ForegroundColor Yellow
 }
 
+if ($logs -match "Published BacklogReady event.*backlog items") {
+    Write-Host "OK: BacklogReady event published with backlog data" -ForegroundColor Green
+} else {
+    Write-Host "WARN: BacklogReady event not found or backlog is empty" -ForegroundColor Yellow
+}
+
 # Check project-service logs
 Write-Host ""
 Write-Host "Checking project-service logs..." -ForegroundColor Yellow
@@ -159,6 +170,29 @@ if ($projectLogs -match "error|Error|ERROR|exception|Exception") {
     }
 } else {
     Write-Host "OK: No errors in project-service logs" -ForegroundColor Green
+}
+
+# Check backlog-service logs
+Write-Host ""
+Write-Host "Checking backlog-service logs..." -ForegroundColor Yellow
+$backlogLogs = docker logs backlog-service --tail 50 2>&1
+if ($backlogLogs -match "Processing BacklogReady event for project.*$projectId") {
+    Write-Host "OK: BacklogReady event received by BacklogService" -ForegroundColor Green
+} else {
+    Write-Host "WARN: BacklogReady event not received by BacklogService" -ForegroundColor Yellow
+}
+
+if ($backlogLogs -match "Successfully imported backlog for project.*$projectId") {
+    Write-Host "OK: Backlog successfully imported to BacklogService" -ForegroundColor Green
+    $backlogLogs | Select-String -Pattern "Successfully imported backlog.*$projectId" | ForEach-Object {
+        Write-Host "  $_" -ForegroundColor Gray
+    }
+} else {
+    Write-Host "WARN: Backlog import not found in logs" -ForegroundColor Yellow
+}
+
+if ($backlogLogs -match "Backlog is empty") {
+    Write-Host "WARN: Backlog was empty in event" -ForegroundColor Yellow
 }
 
 # Check Kafka topic
@@ -190,6 +224,24 @@ try {
     }
 } catch {
     Write-Host "WARN: Could not check MinIO directly" -ForegroundColor Yellow
+}
+
+# Check backlog in BacklogService database
+Write-Host ""
+Write-Host "Checking backlog in BacklogService database..." -ForegroundColor Yellow
+try {
+    # Using direct service call
+    $backlogResponse = Invoke-RestMethod -Uri "http://localhost:5160/api/Backlog/$projectId" -Method Get -Headers @{"Authorization" = "Bearer $token"}
+    if ($backlogResponse -and $backlogResponse.Count -gt 0) {
+        Write-Host "OK: Backlog found in BacklogService: $($backlogResponse.Count) items" -ForegroundColor Green
+        $backlogResponse | Select-Object -First 5 | ForEach-Object {
+            Write-Host "  - $($_.workNumber): $($_.type)" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "WARN: No backlog items found in BacklogService" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "WARN: Could not retrieve backlog from BacklogService: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
 # Final summary
