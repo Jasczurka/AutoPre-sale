@@ -23,6 +23,19 @@ if ($retryCount -eq $maxRetries) {
     exit 1
 }
 
+# Проверяем и удаляем старые регистрации с неправильными ID
+Write-Host "Checking for existing registrations..." -ForegroundColor Yellow
+try {
+    $existingServices = Invoke-RestMethod -Uri "http://localhost:8500/v1/agent/services" -Method Get
+    $authServices = $existingServices.PSObject.Properties | Where-Object { $_.Value.Name -eq "auth-service" -and $_.Value.ID -ne "auth-service-8080" }
+    foreach ($service in $authServices) {
+        Write-Host "Removing old registration: $($service.Value.ID)" -ForegroundColor Yellow
+        Invoke-RestMethod -Uri "http://localhost:8500/v1/agent/service/deregister/$($service.Value.ID)" -Method Put -ErrorAction SilentlyContinue
+    }
+} catch {
+    Write-Host "Warning: Could not check existing services: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 # Регистрируем AuthService в Consul
 $serviceDefinition = @{
     ID = "auth-service-8080"

@@ -58,8 +58,9 @@ class AnalysisHandler:
             logger.info("Getting backlog from Mistral AI")
             backlog_response, conversation_id = self.mistral_service.get_backlog(tz_text)
             
-            # Сохраняем backlog в БД
+            # Сохраняем backlog в БД и собираем список для события
             logger.info("Saving backlog to database")
+            backlog_items_list = []
             if "backlog_table" in backlog_response:
                 for item in backlog_response["backlog_table"]:
                     backlog_item = BacklogItem(
@@ -70,6 +71,8 @@ class AnalysisHandler:
                         acceptance_criteria=item.get("acceptance_criteria")
                     )
                     self.db.add(backlog_item)
+                    # Сохраняем объект для отправки в событии
+                    backlog_items_list.append(backlog_item)
             
             self.db.commit()
             
@@ -100,9 +103,11 @@ class AnalysisHandler:
             analysis.completed_at = datetime.utcnow()
             self.db.commit()
             
-            # Публикуем событие BacklogReady
+            logger.info(f"Found {len(backlog_items_list)} backlog items for analysis {analysis.id}")
+            
+            # Публикуем событие BacklogReady с данными backlog
             logger.info(f"Publishing BacklogReady event for project {project_id}")
-            self.kafka_service.publish_backlog_ready(str(project_id), str(analysis.id))
+            self.kafka_service.publish_backlog_ready(str(project_id), str(analysis.id), backlog_items_list)
             
             logger.info(f"Analysis completed successfully for project {project_id}")
             

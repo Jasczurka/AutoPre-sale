@@ -24,6 +24,12 @@ func NewReverseProxy(consul *registry.ConsulRegistry, logger *zap.Logger) *Rever
 }
 
 func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Логируем исходный путь для отладки
+	originalPath := r.URL.Path
+	rp.logger.Info("Received request",
+		zap.String("original_path", originalPath),
+	)
+	
 	// Извлекаем имя сервиса из пути
 	// Формат: /api/service-name/...
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/"), "/")
@@ -33,6 +39,10 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	serviceName := pathParts[0]
+	rp.logger.Info("Parsed path",
+		zap.String("service", serviceName),
+		zap.Strings("path_parts", pathParts),
+	)
 	
 	// Получаем адрес сервиса из Consul
 	serviceAddr, err := rp.consul.GetServiceAddress(serviceName)
@@ -62,11 +72,21 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Модифицируем запрос: убираем /api/service-name из пути
 	// Для auth-service сохраняем /api/Auth в пути, так как контроллер использует [Route("api/[controller]")]
 	// Для project-service сохраняем /api/Projects в пути, так как контроллер использует [Route("api/[controller]")]
+	// Для backlog-service сохраняем /api/Backlog в пути, так как контроллер использует [Route("api/[controller]")]
 	if serviceName == "auth-service" {
-		newPath := "/api/Auth/" + strings.Join(pathParts[1:], "/")
+		// pathParts[0] = "auth-service", pathParts[1:] = ["Auth", "register", ...]
+		// Нужно получить /api/Auth/register
+		newPath := "/api/" + strings.Join(pathParts[1:], "/")
 		r.URL.Path = newPath
 	} else if serviceName == "project-service" {
-		newPath := "/api/Projects/" + strings.Join(pathParts[1:], "/")
+		// pathParts[0] = "project-service", pathParts[1:] = ["Projects", ...]
+		// Нужно получить /api/Projects/...
+		newPath := "/api/" + strings.Join(pathParts[1:], "/")
+		r.URL.Path = newPath
+	} else if serviceName == "backlog-service" {
+		// pathParts[0] = "backlog-service", pathParts[1:] = ["Backlog", ...]
+		// Нужно получить /api/Backlog/...
+		newPath := "/api/" + strings.Join(pathParts[1:], "/")
 		r.URL.Path = newPath
 	} else {
 		newPath := "/" + strings.Join(pathParts[1:], "/")
@@ -78,7 +98,7 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	rp.logger.Info("Proxying request",
 		zap.String("service", serviceName),
-		zap.String("original_path", r.URL.Path),
+		zap.String("modified_path", r.URL.Path),
 		zap.String("target", targetURL.String()),
 	)
 
