@@ -1,0 +1,82 @@
+.accordion-tkp {
+  font-family: 'Montserrat', sans-serif;
+  background: #fff;
+}
+
+.accordion-items {
+  background: #fff;
+  user-select: none;
+}
+
+.accordion-item {
+  border-bottom: 1px solid #ddd;
+}
+
+.accordion-item-header:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.accordion-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 10px;
+  cursor: pointer;
+  background: rgba(243, 239, 237, 1);
+}
+
+
+
+.accordion-item-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 100%;
+}
+
+.accordion-icon {
+  font-size: 18px;
+}
+
+.accordion-item-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  border: 1px solid #B3B3B3;
+}
+
+.accordion-item-content:last-child {
+  border: none;
+}
+
+.accordion-item.active .accordion-item-content {
+  max-height: 2000px;
+}
+
+.content-grid {
+  padding: 15px 20px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.content-text {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 100%;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .content-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}

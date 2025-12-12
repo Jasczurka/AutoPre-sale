@@ -1,0 +1,5 @@
+const useRegistrationPresenter = () => {
+
+}
+
+export { useRegistrationPresenter }

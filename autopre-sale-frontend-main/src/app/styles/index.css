@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+#root{
+  height: 100%;
+  width: 100%;
+}
+
+:root {
+  font-family: Montserrat, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.3;
+  letter-spacing: 0;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  --color-background: rgb(243, 239, 237);
+  --color-background2: #FFE7DB;
+  --color-accent1: rgba(173, 15, 19, 1);
+  --color-accent2: rgba(215, 96, 71, 1);
+  --color-light-grey: rgba(179, 179, 179, 1);
+  --color-dark-grey: rgba(126, 126, 126, 1);
+  --color-neutral: rgba(255, 255, 255, 1);
+  --color-text-dark: rgba(26, 24, 28, 1);
+  --color-error: #FFA8A8;
+
+  --transition-fast: 150ms cubic-bezier(.2,.8,.2,1);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--color-background);
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+b {
+  font-weight: 600;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}

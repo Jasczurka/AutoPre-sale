@@ -1,0 +1,54 @@
+.alert {
+    --icon-color: var(--color-dark-grey);
+    width: 440px;
+    height: fit-content;
+    min-height: 54px;
+    box-shadow: 0 0 8px 0 rgba(0,0,0,0.3);
+    color: var(--color-text-dark);
+    background-color: var(--color-neutral);
+    transition: opacity 0.3s ease-in-out;
+    border-radius: 4px;
+    padding: 15px 20px;
+    justify-content: space-between;
+    align-items: center;
+    display: flex;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: Montserrat, sans-serif;
+
+    & > div:first-child {
+        div {
+            color: var(--icon-color);
+        }
+    }
+    & > button {
+        all: unset;
+        color: var(--color-dark-grey);
+        width: 24px;
+        height: 24px;
+        &:hover {
+            color: var(--color-text-dark);
+        }
+    }
+
+    &.attention {
+        background-color: var(--color-background2);
+    }
+    &.success{
+        --icon-color: var(--color-green-500)
+    }
+    &.warning{
+        --icon-color: var(--color-accent2)
+    }
+    &.error{
+        --icon-color: var(--color-accent1)
+    }
+}
+
+.visible {
+    opacity: 100;
+}
+.invisible {
+    opacity: 0;
+    pointer-events: none;
+}

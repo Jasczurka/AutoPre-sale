@@ -1,0 +1,8 @@
+const ALERT_DISPLAY_TIME = 10000;
+const ALERT_FADE_TIME = 300;
+
+
+export {
+    ALERT_DISPLAY_TIME,
+    ALERT_FADE_TIME,
+}

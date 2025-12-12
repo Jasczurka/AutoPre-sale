@@ -1,0 +1,15 @@
+.label{
+    font-size: 14px;
+    line-height: 100%;
+    font-weight: 600;
+    color: var(--color-text-dark);
+
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    &.error {
+        color: var(--color-accent1);
+    }
+}
