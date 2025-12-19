@@ -12,48 +12,47 @@ namespace BacklogService.Application.UseCases;
 public class ExportBacklogUseCase
 {
     private readonly GetBacklogUseCase _getBacklogUseCase;
-    private readonly IStorageService _storageService;
 
-    public ExportBacklogUseCase(GetBacklogUseCase getBacklogUseCase, IStorageService storageService)
+    public ExportBacklogUseCase(GetBacklogUseCase getBacklogUseCase)
     {
         _getBacklogUseCase = getBacklogUseCase;
-        _storageService = storageService;
     }
 
-    public async Task<Result<ExportResponseDto, ExportBacklogError>> Execute(Guid projectId, ExportType type)
+    public async Task<Result<(Stream stream, string fileName, string contentType), ExportBacklogError>> Execute(Guid projectId, ExportType type)
     {
         var getResult = await _getBacklogUseCase.Execute(projectId);
         if (!getResult.IsSuccess)
         {
             if (getResult.Error == GetBacklogError.ProjectNotFound)
-                return Result<ExportResponseDto, ExportBacklogError>.Fail(ExportBacklogError.ProjectNotFound);
+                return Result<(Stream stream, string fileName, string contentType), ExportBacklogError>.Fail(ExportBacklogError.ProjectNotFound);
             else
-                return Result<ExportResponseDto, ExportBacklogError>.Fail(ExportBacklogError.FileGenerationFailed);
+                return Result<(Stream stream, string fileName, string contentType), ExportBacklogError>.Fail(ExportBacklogError.FileGenerationFailed);
         }
 
         var flatWorks = Flatten(getResult.Value);
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
         var extension = type == ExportType.Csv ? "csv" : "xlsx";
-        var key = $"backlog/{projectId}/backlog_{timestamp}.{extension}";
+        var fileName = $"backlog_{projectId}_{timestamp}.{extension}";
 
         try
         {
-            string url;
+            Stream stream;
+            string contentType;
             if (type == ExportType.Csv)
             {
-                url = await GenerateAndUploadCsv(flatWorks, key);
+                (stream, contentType) = await GenerateCsv(flatWorks);
             }
             else
             {
-                url = await GenerateAndUploadXlsx(flatWorks, key);
+                (stream, contentType) = GenerateXlsx(flatWorks);
             }
 
-            return Result<ExportResponseDto, ExportBacklogError>.Success(new ExportResponseDto { Url = url });
+            return Result<(Stream stream, string fileName, string contentType), ExportBacklogError>.Success((stream, fileName, contentType));
         }
         catch
         {
-            return Result<ExportResponseDto, ExportBacklogError>.Fail(ExportBacklogError.FileGenerationFailed);
+            return Result<(Stream stream, string fileName, string contentType), ExportBacklogError>.Fail(ExportBacklogError.FileGenerationFailed);
         }
     }
 
@@ -79,10 +78,10 @@ public class ExportBacklogUseCase
         return result;
     }
 
-    private async Task<string> GenerateAndUploadCsv(List<WorkDto> works, string key)
+    private async Task<(Stream stream, string contentType)> GenerateCsv(List<WorkDto> works)
     {
-        using var memoryStream = new MemoryStream();
-        using var writer = new StreamWriter(memoryStream);
+        var memoryStream = new MemoryStream();
+        using var writer = new StreamWriter(memoryStream, leaveOpen: true);
         using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
 
         csv.WriteRecords(works.Select(w => new
@@ -96,12 +95,12 @@ public class ExportBacklogUseCase
         await writer.FlushAsync();
         memoryStream.Position = 0;
 
-        return await _storageService.UploadFileAsync(memoryStream, key, "text/csv");
+        return (memoryStream, "text/csv");
     }
 
-    private async Task<string> GenerateAndUploadXlsx(List<WorkDto> works, string key)
+    private (Stream stream, string contentType) GenerateXlsx(List<WorkDto> works)
     {
-        using var workbook = new XLWorkbook();
+        var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("Backlog");
 
         worksheet.Cell(1, 1).Value = "WorkNumber";
@@ -118,10 +117,10 @@ public class ExportBacklogUseCase
             worksheet.Cell(i + 2, 4).Value = work.AcceptanceCriteria;
         }
 
-        using var memoryStream = new MemoryStream();
+        var memoryStream = new MemoryStream();
         workbook.SaveAs(memoryStream);
         memoryStream.Position = 0;
 
-        return await _storageService.UploadFileAsync(memoryStream, key, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return (memoryStream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 }

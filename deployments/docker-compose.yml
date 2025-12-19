@@ -211,6 +211,14 @@ services:
     container_name: document-analysis-service
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    dns_opt:
+      - "ndots:0"
+      - "single-request"
     environment:
       - DATABASE_URL=postgresql://postgres:1234@postgres-document-analysis:5432/document_analysis_db
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -227,9 +235,6 @@ services:
       - MISTRAL_AGENT_TKP_ID=ag_019b0fcd619d7542b255b47153ab2d5b
       - SERVICE_NAME=document-analysis-service
       - LOG_LEVEL=INFO
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
     depends_on:
       postgres-document-analysis:
         condition: service_healthy
@@ -280,6 +285,9 @@ services:
     environment:
       - ConnectionStrings__DefaultConnection=Host=postgres-backlog;Port=5432;Database=backlogdb;Username=postgres;Password=1234
       - ASPNETCORE_ENVIRONMENT=Development
+      - Jwt__Issuer=AuthService
+      - Jwt__Audience=ApiClients
+      - Jwt__PublicKey=MIIBCgKCAQEAy3wuQ1UkUrcEaxR+1gVEEUigRdJthoFenMC/BhpB7y5pelrpoNxdHhAWDuHwOYvj70ZuRxlf2I5Gl+nuVTFQG0P7uS7coVT2zcrzBZp5WNs5LzWea2f5GyFOCtFeXH4fMqfIJdJs+y8+o2luQx4OdZkPJ9sTuRTywDEd92smwY0kqAtLa1ejuFmvB207qCJNKYgvYpgDXdYA5tgZxtepozTTbEBkYk14XETmK2GOgIR3B8PixfEFM2EK6oIqrtKEh020h1FiYVZNWlDmvpwWJxgNoaDoCvAay7jGDwn76Gu8rqTkkHaodNZ5QPasHuk6xqhnMCcYh2NBo9+rV290rQIDAQAB
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin

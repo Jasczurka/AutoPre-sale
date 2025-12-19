@@ -1,6 +1,6 @@
 powershell '
     cd deployments
-    docker compose up --build
+    docker compose up -d --build
 '
 
 localhost:3000 - приложение

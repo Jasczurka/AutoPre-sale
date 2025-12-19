@@ -69,9 +69,9 @@ public class MinIOStorageService : IStorageService
         
         await _minioClient.PutObjectAsync(_bucketName, key, streamToUse, length, contentType);
         
-        // Формируем URL для доступа к файлу
-        var url = $"http://{_endpoint}/{_bucketName}/{key}";
-        return url;
+        // Генерируем presigned URL для доступа к файлу из браузера (действителен 1 час)
+        var presignedUrl = await _minioClient.PresignedGetObjectAsync(_bucketName, key, 3600);
+        return presignedUrl;
     }
 }
 

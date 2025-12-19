@@ -3,6 +3,15 @@ from mistralai import Mistral
 from app.config.settings import settings
 import logging
 import json
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    RetryError
+)
+import httpx
+import httpcore
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +24,16 @@ class MistralTKPService:
         self.agent = settings.mistral_agent_tkp_id
       
 
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((httpx.ConnectError, httpcore.ConnectError, OSError)),
+        reraise=True
+    )
     def get_tkp(self, conversation_id: str, tz_text: str) -> dict:
         """Получает ТКП из Mistral AI (продолжение разговора)"""
         try:
+            logger.info(f"Attempting to get TKP from Mistral AI (retry enabled)")
             with Mistral(api_key=self.api_key) as mistral:
                 messages = [
                     {
@@ -60,6 +76,9 @@ class MistralTKPService:
                 logger.info(f"Successfully parsed TKP JSON, stopped at position {idx}")
                 
                 return result
+        except (httpx.ConnectError, httpcore.ConnectError, OSError) as e:
+            logger.warning(f"Network error getting TKP from Mistral (will retry): {e}")
+            raise
         except Exception as e:
             logger.error(f"Error getting TKP from Mistral: {e}")
             raise

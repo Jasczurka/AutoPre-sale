@@ -26,17 +26,16 @@ public class WorkRepository : IWorkRepository
             .Where(w => w.ProjectId == projectId)
             .ToListAsync();
 
-        // var byId = all.ToDictionary(w => w.Id);
+        var byId = all.ToDictionary(w => w.Id);
 
-
-        // foreach (var w in all)
-        // {
-        //     if (w.ParentId != null && byId.TryGetValue(w.ParentId.Value, out var parent))
-        //     {
-        //         parent.ChildWorks ??= new();
-        //         parent.ChildWorks.Add(w);
-        //     }
-        // }
+        foreach (var w in all)
+        {
+            if (w.ParentId != null && byId.TryGetValue(w.ParentId.Value, out var parent))
+            {
+                parent.ChildWorks ??= new();
+                parent.ChildWorks.Add(w);
+            }
+        }
 
         return all.Where(w => w.ParentId == null);
     }

@@ -4,6 +4,15 @@ from mistralai import Mistral
 from app.config.settings import settings
 import logging
 import json
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    RetryError
+)
+import httpx
+import httpcore
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +22,20 @@ class MistralService:
         self.api_key = settings.mistral_api_key
         self.agent = settings.mistral_agent_id 
         
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((httpx.ConnectError, httpcore.ConnectError, OSError)),
+        reraise=True
+    )
     def get_backlog(self, tz_text: str) -> Tuple[dict, str]:
         """Получает backlog из Mistral AI, возвращает (backlog_dict, conversation_id)"""
         try:
+            logger.info(f"Attempting to get backlog from Mistral AI (retry enabled)")
             with Mistral(api_key=self.api_key) as mistral:
                 messages = [
                     {
-                        "content": f"[ТЕХНИЧЕСКОЕ ЗАДАНИЕ]\n{tz_text}",
+                        "content": f"[ТЕХНИЧЕСКОЕ ЗАДАНИЕ]\n{tz_text}\n\nВАЖНО: Для каждой работы (work_number) обязательно укажи критерии приёмки (acceptance_criteria). Критерии приёмки должны быть конкретными и измеримыми.",
                         "role": "user",
                     }
                 ]
@@ -61,6 +77,9 @@ class MistralService:
                 # Используем id ответа как conversation_id (для совместимости с кодом)
                 conversation_id = response.id if hasattr(response, 'id') else str(response.choices[0].index)
                 return result, conversation_id
+        except (httpx.ConnectError, httpcore.ConnectError, OSError) as e:
+            logger.warning(f"Network error getting backlog from Mistral (will retry): {e}")
+            raise
         except Exception as e:
             logger.error(f"Error getting backlog from Mistral: {e}")
             raise

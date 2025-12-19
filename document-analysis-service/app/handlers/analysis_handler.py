@@ -62,7 +62,25 @@ class AnalysisHandler:
             logger.info("Saving backlog to database")
             backlog_items_list = []
             if "backlog_table" in backlog_response:
+                # Убираем дубликаты: для каждого work_number берём запись с критериями приёмки, если она есть
+                unique_items = {}
                 for item in backlog_response["backlog_table"]:
+                    work_number = item.get("work_number", "")
+                    if not work_number:
+                        continue
+                    
+                    # Если запись уже есть, проверяем, есть ли у неё критерии приёмки
+                    if work_number in unique_items:
+                        existing_item = unique_items[work_number]
+                        # Если у существующей записи нет критериев, а у новой есть - заменяем
+                        if not existing_item.get("acceptance_criteria") and item.get("acceptance_criteria"):
+                            unique_items[work_number] = item
+                            logger.info(f"Replacing item {work_number} with version that has acceptance criteria")
+                    else:
+                        unique_items[work_number] = item
+                
+                # Сохраняем уникальные записи
+                for item in unique_items.values():
                     backlog_item = BacklogItem(
                         id=uuid.uuid4(),
                         analysis_id=analysis.id,
