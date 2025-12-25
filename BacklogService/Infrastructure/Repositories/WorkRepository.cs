@@ -22,7 +22,10 @@ public class WorkRepository : IWorkRepository
 
     public async Task<IEnumerable<Work>> GetHierarchyByProjectIdAsync(Guid projectId)
     {
+        // AsNoTracking() отключает отслеживание изменений и автоматическую загрузку связей
+        // Это важно для предотвращения дублирования детей в иерархии
         var all = await _context.Works
+            .AsNoTracking()
             .Where(w => w.ProjectId == projectId)
             .ToListAsync();
 

@@ -22,6 +22,7 @@ public class ImportBacklogUseCase
         // Это предотвращает дубликаты при повторном импорте
         var existingWorks = await _repo.GetHierarchyByProjectIdAsync(projectId);
         var allExistingWorks = FlattenHierarchy(existingWorks).ToList();
+        
         if (allExistingWorks.Any())
         {
             await _repo.DeleteRangeAsync(allExistingWorks);

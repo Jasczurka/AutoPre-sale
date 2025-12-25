@@ -22,11 +22,17 @@ namespace BacklogService.Controllers
         [HttpGet("{projectId}")]
         [ProducesResponseType(typeof(List<WorkDto>), (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(GetBacklogError), (int)HttpStatusCode.BadRequest)]
-        public async Task<IActionResult> Get(Guid projectId, [FromServices] GetBacklogUseCase useCase)
+        public async Task<IActionResult> Get(Guid projectId, [FromServices] GetBacklogUseCase useCase, [FromServices] ILogger<BacklogController> logger)
         {
+            logger.LogInformation("Get backlog request for project {ProjectId}", projectId);
             var result = await useCase.Execute(projectId);
             if (result.IsSuccess)
+            {
+                logger.LogInformation("Backlog retrieved successfully: {ProjectId}, count: {Count}", 
+                    projectId, result.Value.Count);
                 return Ok(result.Value);
+            }
+            logger.LogWarning("Failed to get backlog for project {ProjectId}: {Error}", projectId, result.Error);
             return BadRequest(result.Error);
         }
 
