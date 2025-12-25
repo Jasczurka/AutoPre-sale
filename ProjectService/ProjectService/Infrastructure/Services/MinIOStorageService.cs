@@ -35,10 +35,14 @@ public class MinIOStorageService : IStorageService
     {
         try
         {
-            bool found = await _minioClient.BucketExistsAsync(_bucketName);
+            var beArgs = new BucketExistsArgs()
+                .WithBucket(_bucketName);
+            bool found = await _minioClient.BucketExistsAsync(beArgs);
             if (!found)
             {
-                await _minioClient.MakeBucketAsync(_bucketName);
+                var mbArgs = new MakeBucketArgs()
+                    .WithBucket(_bucketName);
+                await _minioClient.MakeBucketAsync(mbArgs);
             }
         }
         catch (Exception ex)
@@ -67,10 +71,57 @@ public class MinIOStorageService : IStorageService
             streamToUse = memoryStream;
         }
         
-        await _minioClient.PutObjectAsync(_bucketName, key, streamToUse, length, contentType);
+        var putObjectArgs = new PutObjectArgs()
+            .WithBucket(_bucketName)
+            .WithObject(key)
+            .WithStreamData(streamToUse)
+            .WithObjectSize(length)
+            .WithContentType(contentType);
+        
+        await _minioClient.PutObjectAsync(putObjectArgs, ct);
         
         // Формируем URL для доступа к файлу
         var url = $"http://{_endpoint}/{_bucketName}/{key}";
         return url;
+    }
+
+    public async Task<Stream> DownloadFileAsync(string key, CancellationToken ct = default)
+    {
+        try
+        {
+            var memoryStream = new MemoryStream();
+            
+            var getObjectArgs = new GetObjectArgs()
+                .WithBucket(_bucketName)
+                .WithObject(key)
+                .WithCallbackStream(async (stream) =>
+                {
+                    await stream.CopyToAsync(memoryStream, ct);
+                });
+            
+            await _minioClient.GetObjectAsync(getObjectArgs, ct);
+            
+            memoryStream.Position = 0;
+            return memoryStream;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to download file from MinIO: {ex.Message}", ex);
+        }
+    }
+
+    public async Task DeleteFileAsync(string key, CancellationToken ct = default)
+    {
+        try
+        {
+            var args = new RemoveObjectArgs()
+                .WithBucket(_bucketName)
+                .WithObject(key);
+            await _minioClient.RemoveObjectAsync(args, ct);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to delete file from MinIO: {ex.Message}", ex);
+        }
     }
 }

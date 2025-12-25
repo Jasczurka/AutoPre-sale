@@ -41,6 +41,9 @@ namespace ProjectService.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TkpUrl")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId");

@@ -123,9 +123,9 @@ class AnalysisHandler:
             
             logger.info(f"Found {len(backlog_items_list)} backlog items for analysis {analysis.id}")
             
-            # Публикуем событие BacklogReady с данными backlog
-            logger.info(f"Publishing BacklogReady event for project {project_id}")
-            self.kafka_service.publish_backlog_ready(str(project_id), str(analysis.id), backlog_items_list)
+            # Публикуем событие BacklogReady с данными backlog и URL ТКП
+            logger.info(f"Publishing BacklogReady event for project {project_id} with TKP URL: {tkp_url}")
+            self.kafka_service.publish_backlog_ready(str(project_id), str(analysis.id), backlog_items_list, tkp_url)
             
             logger.info(f"Analysis completed successfully for project {project_id}")
             

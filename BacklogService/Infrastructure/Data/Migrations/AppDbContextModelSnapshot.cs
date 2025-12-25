@@ -43,7 +43,7 @@ namespace BacklogService.Infrastructure.Data.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Type")
+                    b.Property<string>("WorkType")
                         .IsRequired()
                         .HasColumnType("text");
 

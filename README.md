@@ -1,4 +1,5 @@
 powershell '
+    git clone
     cd deployments
     docker compose up -d --build
 '

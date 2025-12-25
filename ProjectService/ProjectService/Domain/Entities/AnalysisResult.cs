@@ -9,6 +9,7 @@ public class AnalysisResult
     public required AnalysisStatus Status { get; set; }
     public required DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public string? TkpUrl { get; set; }
     
     public required Project Project { get; set; }
 }

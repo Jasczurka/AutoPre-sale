@@ -1,9 +1,11 @@
 using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ProjectService.Application.Common;
 using ProjectService.Application.DTOs;
 using ProjectService.Application.UseCases;
 using ProjectService.Application.Errors;
+using ProjectService.Domain.Repositories;
 
 namespace ProjectService.Controllers;
 
@@ -16,8 +18,9 @@ public class ProjectsController : ControllerBase {
     private readonly UploadProjectDocumentUseCase _uploadDocument;
     private readonly DeleteProjectUseCase _delete;
     private readonly UpdateProjectUseCase _update;
+    private readonly DownloadTkpUseCase _downloadTkp;
 
-    public ProjectsController(CreateProjectUseCase create, GetProjectsUseCase list, GetProjectByIdUseCase getById, UploadProjectDocumentUseCase uploadDocument, DeleteProjectUseCase delete, UpdateProjectUseCase update)
+    public ProjectsController(CreateProjectUseCase create, GetProjectsUseCase list, GetProjectByIdUseCase getById, UploadProjectDocumentUseCase uploadDocument, DeleteProjectUseCase delete, UpdateProjectUseCase update, DownloadTkpUseCase downloadTkp)
     {
         _create = create;
         _list = list;
@@ -25,6 +28,7 @@ public class ProjectsController : ControllerBase {
         _uploadDocument = uploadDocument;
         _delete = delete;
         _update = update;
+        _downloadTkp = downloadTkp;
     }
 
     [HttpPost]
@@ -143,5 +147,64 @@ public class ProjectsController : ControllerBase {
             return BadRequest(new { error = error?.Message ?? "Ошибка удаления проекта", code = error?.Code ?? "unknown" });
         }
         return NoContent();
+    }
+
+    [HttpDelete("{id:guid}/documents/{documentId:guid}")]
+    [ProducesResponseType((int)HttpStatusCode.NoContent)]
+    [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<IActionResult> DeleteDocument(
+        Guid id, 
+        Guid documentId,
+        [FromServices] IProjectRepository repo,
+        [FromServices] IStorageService storage)
+    {
+        var project = await repo.GetByIdAsync(id);
+        if (project == null)
+            return NotFound(new { error = "Проект не найден", code = "project.not_found" });
+
+        var document = project.Documents.FirstOrDefault(d => d.Id == documentId);
+        if (document == null)
+            return NotFound(new { error = "Документ не найден", code = "document.not_found" });
+
+        // Извлекаем ключ MinIO из URL
+        var uri = new Uri(document.FileUrl);
+        var pathParts = uri.AbsolutePath.TrimStart('/').Split('/', 2);
+        var minioKey = pathParts.Length > 1 ? pathParts[1] : uri.AbsolutePath.TrimStart('/');
+
+        // Удаляем файл из MinIO
+        try
+        {
+            await storage.DeleteFileAsync(minioKey);
+        }
+        catch
+        {
+            // Логируем ошибку, но продолжаем удаление из БД
+            // В production здесь должен быть proper logging
+        }
+
+        // Удаляем документ из проекта
+        project.Documents.Remove(document);
+        project.UpdatedAt = DateTime.UtcNow;
+        await repo.UpdateWithDocumentsAsync(project);
+
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/tkp/download")]
+    [ProducesResponseType(typeof(FileResult), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<IActionResult> DownloadTkp(Guid id)
+    {
+        var result = await _downloadTkp.Execute(id);
+        if (!result.IsSuccess)
+        {
+            var error = result.Error!;
+            return NotFound(new { error = error.Message, code = error.Code });
+        }
+
+        var (stream, fileName, contentType) = result.Value;
+        return File(stream, contentType, fileName);
     }
 }

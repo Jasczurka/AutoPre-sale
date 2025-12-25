@@ -113,6 +113,7 @@ services:
     ports:
       - "5158:8080"
     environment:
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres-auth;Port=5432;Database=authdb;Username=postgres;Password=1234
       - ASPNETCORE_ENVIRONMENT=Development
       - Jwt__Issuer=AuthService
@@ -253,6 +254,7 @@ services:
     ports:
       - "5159:8080"
     environment:
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres-project;Port=5432;Database=projectsdb;Username=postgres;Password=1234
       - ASPNETCORE_ENVIRONMENT=Development
       - Jwt__Issuer=AuthService
@@ -283,6 +285,7 @@ services:
     ports:
       - "5160:8080"
     environment:
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres-backlog;Port=5432;Database=backlogdb;Username=postgres;Password=1234
       - ASPNETCORE_ENVIRONMENT=Development
       - Jwt__Issuer=AuthService
@@ -302,6 +305,57 @@ services:
       kafka:
         condition: service_started
       minio:
+        condition: service_started
+    networks:
+      - app-network
+
+  postgres-template:
+    image: postgres:15-alpine
+    container_name: postgres-template
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: templatesdb
+    volumes:
+      - postgres_template_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  template-service:
+    build:
+      context: ../TemplateService
+      dockerfile: Dockerfile
+    container_name: template-service
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://postgres:1234@postgres-template:5432/templatesdb
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET_NAME=templates
+      - MINIO_SECURE=false
+      - JWT_PUBLIC_KEY=MIIBCgKCAQEAy3wuQ1UkUrcEaxR+1gVEEUigRdJthoFenMC/BhpB7y5pelrpoNxdHhAWDuHwOYvj70ZuRxlf2I5Gl+nuVTFQG0P7uS7coVT2zcrzBZp5WNs5LzWea2f5GyFOCtFeXH4fMqfIJdJs+y8+o2luQx4OdZkPJ9sTuRTywDEd92smwY0kqAtLa1ejuFmvB207qCJNKYgvYpgDXdYA5tgZxtepozTTbEBkYk14XETmK2GOgIR3B8PixfEFM2EK6oIqrtKEh020h1FiYVZNWlDmvpwWJxgNoaDoCvAay7jGDwn76Gu8rqTkkHaodNZ5QPasHuk6xqhnMCcYh2NBo9+rV290rQIDAQAB
+      - JWT_ISSUER=AuthService
+      - JWT_AUDIENCE=ApiClients
+      - SERVICE_NAME=template-service
+      - SERVICE_HOST=template-service
+      - SERVICE_PORT=8003
+      - LOG_LEVEL=INFO
+      - CONSUL_ADDRESS=consul:8500
+    depends_on:
+      postgres-template:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      consul:
         condition: service_started
     networks:
       - app-network
@@ -337,6 +391,71 @@ services:
         condition: service_started
       backlog-service:
         condition: service_started
+      template-service:
+        condition: service_started
+      presentation-builder-service:
+        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  postgres-presentation:
+    image: postgres:15-alpine
+    container_name: postgres-presentation
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: presentation_builder
+    volumes:
+      - postgres_presentation_data:/var/lib/postgresql/data
+      - ../presentation-builder-service/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  presentation-builder-service:
+    build:
+      context: ../presentation-builder-service
+      dockerfile: Dockerfile
+      args:
+        - http_proxy
+        - https_proxy
+    container_name: presentation-builder-service
+    ports:
+      - "8005:8005"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      DB_HOST: postgres-presentation
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: presentation_builder
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      CONSUL_ADDRESS: consul:8500
+      JWT_PUBLIC_KEY: MIIBCgKCAQEAy3wuQ1UkUrcEaxR+1gVEEUigRdJthoFenMC/BhpB7y5pelrpoNxdHhAWDuHwOYvj70ZuRxlf2I5Gl+nuVTFQG0P7uS7coVT2zcrzBZp5WNs5LzWea2f5GyFOCtFeXH4fMqfIJdJs+y8+o2luQx4OdZkPJ9sTuRTywDEd92smwY0kqAtLa1ejuFmvB207qCJNKYgvYpgDXdYA5tgZxtepozTTbEBkYk14XETmK2GOgIR3B8PixfEFM2EK6oIqrtKEh020h1FiYVZNWlDmvpwWJxgNoaDoCvAay7jGDwn76Gu8rqTkkHaodNZ5QPasHuk6xqhnMCcYh2NBo9+rV290rQIDAQAB
+      JWT_ISSUER: AuthService
+      JWT_AUDIENCE: ApiClients
+    depends_on:
+      postgres-presentation:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      consul:
+        condition: service_started
+      template-service:
+        condition: service_started
+      project-service:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -351,5 +470,7 @@ volumes:
   postgres_document_analysis_data:
   postgres_project_data:
   postgres_backlog_data:
+  postgres_template_data:
+  postgres_presentation_data:
   minio_data:
 

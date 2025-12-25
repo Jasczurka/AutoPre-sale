@@ -47,7 +47,8 @@ public class GetProjectByIdUseCase
                 Id = analysisResults.First().Id,
                 Status = analysisResults.First().Status,
                 StartedAt = analysisResults.First().StartedAt,
-                CompletedAt = analysisResults.First().CompletedAt
+                CompletedAt = analysisResults.First().CompletedAt,
+                TkpUrl = analysisResults.First().TkpUrl
             } : null
         };
 
