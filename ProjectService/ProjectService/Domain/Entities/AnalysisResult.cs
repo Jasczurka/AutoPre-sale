@@ -10,6 +10,7 @@ public class AnalysisResult
     public required DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? TkpUrl { get; set; }
+    public string? ErrorMessage { get; set; } // Сообщение об ошибке при Failed статусе
     
     public required Project Project { get; set; }
 }

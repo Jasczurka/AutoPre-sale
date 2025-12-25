@@ -6,10 +6,20 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	"api-gateway/internal/registry"
 	"go.uber.org/zap"
 )
+
+// Helper function to get all header keys
+func getHeaderKeys(h http.Header) []string {
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
+	}
+	return keys
+}
 
 type ReverseProxy struct {
 	consul         *registry.ConsulRegistry
@@ -47,6 +57,9 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		zap.String("method", r.Method),
 		zap.String("original_path", originalPath),
 		zap.String("raw_query", r.URL.RawQuery),
+		zap.String("accept_header", r.Header.Get("Accept")),
+		zap.String("host", r.Host),
+		zap.String("remote_addr", r.RemoteAddr),
 	)
 
 	// Извлекаем имя сервиса из пути
@@ -75,6 +88,11 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serviceName := rp.mapServiceName(pathSegment)
 
 	// Получаем адрес сервиса из Consul
+	rp.logger.Info("Looking up service in Consul",
+		zap.String("service_name", serviceName),
+		zap.String("path_segment", pathSegment),
+	)
+
 	serviceAddr, err := rp.consul.GetServiceAddress(serviceName)
 	if err != nil {
 		rp.logger.Error("Failed to get service address",
@@ -85,6 +103,11 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Service %s not available", serviceName), http.StatusServiceUnavailable)
 		return
 	}
+
+	rp.logger.Info("Service address resolved",
+		zap.String("service", serviceName),
+		zap.String("address", serviceAddr),
+	)
 
 	// Создаем URL для проксирования
 	targetURL, err := url.Parse(fmt.Sprintf("http://%s", serviceAddr))
@@ -97,11 +120,55 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Проверяем, является ли это SSE endpoint
+	acceptHeader := r.Header.Get("Accept")
+	isSSE := acceptHeader == "text/event-stream" || strings.HasSuffix(r.URL.Path, "/events")
+
+	rp.logger.Info("Checking if SSE endpoint",
+		zap.String("path", r.URL.Path),
+		zap.String("accept_header", acceptHeader),
+		zap.Bool("is_sse", isSSE))
+
 	// Создаем reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	// Модифицируем ответ: удаляем CORS заголовки из backend (API Gateway их уже добавил)
+	// Для SSE endpoints создаем специальный Transport без таймаутов
+	if isSSE {
+		proxy.Transport = &http.Transport{
+			DisableKeepAlives:     false,
+			DisableCompression:    true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			ResponseHeaderTimeout: 0, // Без таймаута для SSE
+		}
+		proxy.FlushInterval = -1 // -1 означает немедленную передачу каждого write
+		rp.logger.Info("SSE endpoint detected, enabling immediate flush",
+			zap.String("path", r.URL.Path),
+			zap.Duration("flush_interval", proxy.FlushInterval),
+			zap.String("target_url", targetURL.String()),
+			zap.String("full_url", fmt.Sprintf("http://%s%s", serviceAddr, r.URL.Path)),
+		)
+	}
+
+	// Обработка ошибок проксирования
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		rp.logger.Error("Proxy error",
+			zap.String("path", r.URL.Path),
+			zap.String("target", targetURL.String()),
+			zap.Error(err),
+			zap.Bool("is_sse", isSSE),
+		)
+		http.Error(w, fmt.Sprintf("Proxy error: %v", err), http.StatusBadGateway)
+	}
+
+	// Модифицируем ответ: удаляем CORS заголовки из backend и добавляем свои
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		rp.logger.Info("Modifying proxy response",
+			zap.String("path", r.URL.Path),
+			zap.Int("status_code", resp.StatusCode),
+			zap.String("content_type", resp.Header.Get("Content-Type")),
+			zap.Bool("is_sse", isSSE))
+
 		// Удаляем CORS заголовки из backend сервисов
 		resp.Header.Del("Access-Control-Allow-Origin")
 		resp.Header.Del("Access-Control-Allow-Methods")
@@ -109,6 +176,49 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Header.Del("Access-Control-Allow-Credentials")
 		resp.Header.Del("Access-Control-Expose-Headers")
 		resp.Header.Del("Access-Control-Max-Age")
+
+		// Добавляем CORS заголовки в ответ
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			resp.Header.Set("Access-Control-Allow-Origin", origin)
+			resp.Header.Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			resp.Header.Set("Access-Control-Allow-Origin", "*")
+		}
+		resp.Header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		resp.Header.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control")
+
+		// Для SSE устанавливаем правильные заголовки
+		if isSSE {
+			rp.logger.Info("Setting SSE headers in response",
+				zap.Int("status_code", resp.StatusCode),
+				zap.String("original_content_type", resp.Header.Get("Content-Type")),
+				zap.Strings("all_headers", getHeaderKeys(resp.Header)),
+			)
+
+			// Устанавливаем SSE заголовки
+			resp.Header.Set("Content-Type", "text/event-stream; charset=utf-8")
+			resp.Header.Set("Cache-Control", "no-cache, no-transform")
+			resp.Header.Set("Connection", "keep-alive")
+			resp.Header.Set("X-Accel-Buffering", "no")
+
+			// Добавляем SSE-специфичные CORS заголовки
+			resp.Header.Set("Access-Control-Expose-Headers", "Content-Type, Cache-Control, Connection")
+
+			// Удаляем заголовки, которые могут помешать SSE
+			resp.Header.Del("Content-Length")
+			resp.Header.Del("Transfer-Encoding")
+
+			rp.logger.Info("SSE headers set successfully",
+				zap.String("content_type", resp.Header.Get("Content-Type")),
+				zap.String("cache_control", resp.Header.Get("Cache-Control")),
+				zap.String("connection", resp.Header.Get("Connection")),
+				zap.String("access_control_allow_origin", resp.Header.Get("Access-Control-Allow-Origin")),
+			)
+		} else {
+			resp.Header.Set("Access-Control-Expose-Headers", "Content-Disposition, Content-Type, Content-Length")
+		}
+
 		return nil
 	}
 
@@ -134,7 +244,29 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		zap.String("original_path", originalPath),
 		zap.String("modified_path", r.URL.Path),
 		zap.String("target", targetURL.String()),
+		zap.String("full_target_url", fmt.Sprintf("%s%s", targetURL.String(), r.URL.Path)),
+		zap.Bool("is_sse", isSSE),
 	)
 
+	// Для SSE запросов не логируем завершение (соединение остается открытым)
+	if isSSE {
+		rp.logger.Info("Starting SSE proxy (connection will remain open)",
+			zap.String("service", serviceName),
+			zap.String("path", r.URL.Path),
+		)
+	}
+
 	proxy.ServeHTTP(w, r)
+
+	if isSSE {
+		rp.logger.Info("SSE connection closed",
+			zap.String("service", serviceName),
+			zap.String("path", r.URL.Path),
+		)
+	} else {
+		rp.logger.Info("Request proxied successfully",
+			zap.String("service", serviceName),
+			zap.String("path", r.URL.Path),
+		)
+	}
 }

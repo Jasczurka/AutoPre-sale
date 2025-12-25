@@ -60,6 +60,23 @@ class KafkaService:
             logger.error(f"Kafka producer error: {e}")
             raise
     
+    def publish_analysis_failed(self, project_id: str, analysis_id: str, error: str):
+        """Публикует событие AnalysisFailed при ошибке анализа"""
+        try:
+            event = {
+                "project_id": project_id,
+                "analysis_id": analysis_id,
+                "error": error
+            }
+            # Используем топик для ошибок анализа
+            topic = getattr(settings, 'kafka_topic_analysis_failed', 'analysis-failed')
+            self.producer.send(topic, value=event)
+            self.producer.flush()
+            logger.info(f"Published AnalysisFailed event for project {project_id}: {error}")
+        except KafkaError as e:
+            logger.error(f"Kafka producer error: {e}")
+            raise
+    
     def close(self):
         """Закрывает соединения"""
         self.consumer.close()

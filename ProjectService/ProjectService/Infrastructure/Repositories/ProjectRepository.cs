@@ -37,9 +37,12 @@ public class ProjectRepository : IProjectRepository
 
     public async Task UpdateWithDocumentsAsync(Project project)
     {
+        // Проект уже tracked после GetByIdAsync, его поля уже обновлены (UpdatedAt)
+        // Просто добавляем новые документы
         foreach (var doc in project.Documents)
         {
-            if (_db.Entry(doc).State == EntityState.Detached)
+            var docEntry = _db.Entry(doc);
+            if (docEntry.State == EntityState.Detached)
             {
                 _db.ProjectDocuments.Add(doc);
             }
@@ -69,5 +72,18 @@ public class ProjectRepository : IProjectRepository
         return await _db.AnalysisResults
             .Where(ar => ar.ProjectId == projectId)
             .ToListAsync();
+    }
+
+    public async Task DeleteAnalysisResultsByProjectIdAsync(Guid projectId)
+    {
+        var analysisResults = await _db.AnalysisResults
+            .Where(ar => ar.ProjectId == projectId)
+            .ToListAsync();
+        
+        if (analysisResults.Any())
+        {
+            _db.AnalysisResults.RemoveRange(analysisResults);
+            await _db.SaveChangesAsync();
+        }
     }
 }

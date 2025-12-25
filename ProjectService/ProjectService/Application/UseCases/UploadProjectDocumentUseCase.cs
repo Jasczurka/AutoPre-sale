@@ -26,6 +26,10 @@ public class UploadProjectDocumentUseCase
         if (file == null || file.Length == 0)
             return Result<ProjectDocumentDto, UploadProjectDocumentError>.Fail(UploadProjectDocumentError.InvalidFile);
 
+        // Очищаем старые результаты анализа ДО загрузки проекта
+        // Это предотвращает конфликты tracking в EF Core
+        await _repo.DeleteAnalysisResultsByProjectIdAsync(projectId);
+
         var project = await _repo.GetByIdAsync(projectId);
         if (project == null)
             return Result<ProjectDocumentDto, UploadProjectDocumentError>.Fail(UploadProjectDocumentError.ProjectNotFound);
@@ -66,8 +70,16 @@ public class UploadProjectDocumentUseCase
         {
             await _repo.UpdateWithDocumentsAsync(project);
         }
-        catch
+        catch (Exception ex)
         {
+            // Log the exception
+            Console.WriteLine($"Error saving document: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+            }
+            
             // If save fails, try to delete the uploaded file
             // Note: Implement delete in storage service if needed
             return Result<ProjectDocumentDto, UploadProjectDocumentError>.Fail(UploadProjectDocumentError.UploadFailed);

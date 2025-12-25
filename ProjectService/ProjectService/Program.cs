@@ -11,6 +11,12 @@ using ProjectService.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Разрешаем синхронные IO операции для SSE endpoints
+builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+{
+    options.AllowSynchronousIO = true;
+});
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -45,11 +51,27 @@ var kafkaTopicFileUploaded = Environment.GetEnvironmentVariable("KAFKA_TOPIC_FIL
 
 builder.Services.AddSingleton<IEventBusService>(sp => new KafkaEventBusService(kafkaBootstrapServers, kafkaTopicFileUploaded));
 
-// Background service for consuming BacklogReady events
+// SSE Event Hub для real-time уведомлений
+builder.Services.AddSingleton<ProjectEventHub>();
+
+// Background services for consuming Kafka events
 builder.Services.AddHostedService<BacklogReadyConsumer>();
+builder.Services.AddHostedService<AnalysisFailedConsumer>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// CORS Configuration
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
 var app = builder.Build();
 
@@ -64,7 +86,9 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
-app.UseHttpsRedirection();
+
+// Убираем UseHttpsRedirection() т.к. работаем через HTTP
+app.UseCors(); // CORS должен быть ПЕРЕД Authentication
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

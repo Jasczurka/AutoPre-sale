@@ -6,6 +6,7 @@ using ProjectService.Application.DTOs;
 using ProjectService.Application.UseCases;
 using ProjectService.Application.Errors;
 using ProjectService.Domain.Repositories;
+using ProjectService.Infrastructure.Services;
 
 namespace ProjectService.Controllers;
 
@@ -19,8 +20,19 @@ public class ProjectsController : ControllerBase {
     private readonly DeleteProjectUseCase _delete;
     private readonly UpdateProjectUseCase _update;
     private readonly DownloadTkpUseCase _downloadTkp;
+    private readonly ProjectEventHub _eventHub;
+    private readonly ILogger<ProjectsController> _logger;
 
-    public ProjectsController(CreateProjectUseCase create, GetProjectsUseCase list, GetProjectByIdUseCase getById, UploadProjectDocumentUseCase uploadDocument, DeleteProjectUseCase delete, UpdateProjectUseCase update, DownloadTkpUseCase downloadTkp)
+    public ProjectsController(
+        CreateProjectUseCase create, 
+        GetProjectsUseCase list, 
+        GetProjectByIdUseCase getById, 
+        UploadProjectDocumentUseCase uploadDocument, 
+        DeleteProjectUseCase delete, 
+        UpdateProjectUseCase update, 
+        DownloadTkpUseCase downloadTkp,
+        ProjectEventHub eventHub,
+        ILogger<ProjectsController> logger)
     {
         _create = create;
         _list = list;
@@ -29,6 +41,8 @@ public class ProjectsController : ControllerBase {
         _delete = delete;
         _update = update;
         _downloadTkp = downloadTkp;
+        _eventHub = eventHub;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -206,5 +220,87 @@ public class ProjectsController : ControllerBase {
 
         var (stream, fileName, contentType) = result.Value;
         return File(stream, contentType, fileName);
+    }
+
+    /// <summary>
+    /// SSE endpoint для получения real-time обновлений статуса анализа проекта.
+    /// Доступен без авторизации, т.к. EventSource API не поддерживает custom headers.
+    /// </summary>
+    [HttpGet("{id:guid}/events")]
+    [AllowAnonymous]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public async Task GetEvents(Guid id, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("===== SSE ENDPOINT CALLED ===== Client connecting to events stream for project {ProjectId}", id);
+        _logger.LogInformation("Request Headers: {Headers}", string.Join(", ", Request.Headers.Select(h => $"{h.Key}={h.Value}")));
+        _logger.LogInformation("Request Path: {Path}", Request.Path);
+        _logger.LogInformation("Request Query: {Query}", Request.QueryString);
+
+        // Настраиваем SSE заголовки
+        Response.Headers["Content-Type"] = "text/event-stream";
+        Response.Headers["Cache-Control"] = "no-cache";
+        Response.Headers["Connection"] = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no"; // Для nginx
+        
+        _logger.LogInformation("SSE Headers set for project {ProjectId}", id);
+
+        // Не используем AutoFlush, т.к. он вызывает синхронный Flush
+        // Вместо этого вручную вызываем FlushAsync после каждой записи
+        var writer = new StreamWriter(Response.Body);
+        
+        try
+        {
+            _logger.LogInformation("Subscribing client to event hub for project {ProjectId}", id);
+            // Подписываем клиента на события проекта
+            _eventHub.Subscribe(id, writer);
+
+            _logger.LogInformation("Sending connection confirmation event for project {ProjectId}", id);
+            // Отправляем первоначальное событие подтверждения подключения
+            try 
+            {
+                await writer.WriteAsync($"event: connected\ndata: {{\"projectId\":\"{id}\"}}\n\n");
+                await writer.FlushAsync();
+                _logger.LogInformation("Connection confirmation event sent successfully for project {ProjectId}", id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send connection confirmation event for project {ProjectId}", id);
+                throw;
+            }
+
+            _logger.LogInformation("===== CLIENT SUCCESSFULLY CONNECTED ===== to events stream for project {ProjectId}", id);
+
+            // Удерживаем соединение открытым до отмены или отключения клиента
+            // Отправляем heartbeat каждые 30 секунд для поддержания соединения
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(30000, cancellationToken);
+                    _logger.LogDebug("Sending heartbeat for project {ProjectId}", id);
+                    await writer.WriteAsync(": heartbeat\n\n");
+                    await writer.FlushAsync();
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error sending heartbeat to client for project {ProjectId}", id);
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SSE connection for project {ProjectId}", id);
+        }
+        finally
+        {
+            // Отписываем клиента при разрыве соединения
+            _eventHub.Unsubscribe(id, writer);
+            _logger.LogInformation("Client disconnected from events stream for project {ProjectId}", id);
+        }
     }
 }

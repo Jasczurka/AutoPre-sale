@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     kafka_consumer_group: str
     kafka_topic_file_uploaded: str
     kafka_topic_backlog_ready: str
+    kafka_topic_analysis_failed: str = "analysis-failed"  # Топик для ошибок анализа
     
     # MinIO
     minio_endpoint: str

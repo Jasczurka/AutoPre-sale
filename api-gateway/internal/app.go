@@ -46,7 +46,7 @@ func NewApp(configPath string) (*App, error) {
 	middlewareChain := middleware.Chain(
 		middleware.Recovery(logger),
 		middleware.Logging(logger),
-		middleware.CORS(),
+		middleware.CORS(logger),
 		jwtMiddleware,
 	)
 
@@ -54,11 +54,12 @@ func NewApp(configPath string) (*App, error) {
 	handler := middlewareChain(httpRouter)
 
 	httpServer := &http.Server{
-		Addr:         fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port),
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:        fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port),
+		Handler:     handler,
+		ReadTimeout: 15 * time.Second,
+		// WriteTimeout должен быть 0 для SSE (long-lived connections)
+		WriteTimeout: 0,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	return &App{

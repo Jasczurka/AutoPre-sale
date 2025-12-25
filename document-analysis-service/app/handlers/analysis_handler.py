@@ -134,5 +134,10 @@ class AnalysisHandler:
             analysis.status = "error"
             analysis.completed_at = datetime.utcnow()
             self.db.commit()
+            
+            # Публикуем событие AnalysisFailed
+            logger.info(f"Publishing AnalysisFailed event for project {project_id}")
+            self.kafka_service.publish_analysis_failed(str(project_id), str(analysis.id), str(e))
+            
             raise
 

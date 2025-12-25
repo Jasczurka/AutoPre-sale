@@ -28,17 +28,44 @@ func NewJWT(consul *registry.ConsulRegistry, cfg config.JWTConfig, logger *zap.L
 				return
 			}
 
+			// Пропускаем SSE endpoints (EventSource не поддерживает custom headers)
+			if strings.Contains(r.URL.Path, "/events") {
+				logger.Info("JWT middleware: Skipping auth for SSE endpoint",
+					zap.String("path", r.URL.Path),
+					zap.String("method", r.Method),
+					zap.String("accept", r.Header.Get("Accept")),
+				)
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, `{"error":"Authorization header required"}`, http.StatusUnauthorized)
+				// Добавляем CORS заголовки перед ошибкой
+				origin := r.Header.Get("Origin")
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+				}
 				w.Header().Set("Content-Type", "application/json")
+				http.Error(w, `{"error":"Authorization header required"}`, http.StatusUnauthorized)
 				return
 			}
 
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, `{"error":"Invalid authorization header format"}`, http.StatusUnauthorized)
+				// Добавляем CORS заголовки перед ошибкой
+				origin := r.Header.Get("Origin")
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+				}
 				w.Header().Set("Content-Type", "application/json")
+				http.Error(w, `{"error":"Invalid authorization header format"}`, http.StatusUnauthorized)
 				return
 			}
 
@@ -50,8 +77,16 @@ func NewJWT(consul *registry.ConsulRegistry, cfg config.JWTConfig, logger *zap.L
 					zap.String("path", r.URL.Path),
 					zap.Error(err),
 				)
-				http.Error(w, `{"error":"Invalid or expired token"}`, http.StatusUnauthorized)
+				// Добавляем CORS заголовки перед ошибкой
+				origin := r.Header.Get("Origin")
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+				}
 				w.Header().Set("Content-Type", "application/json")
+				http.Error(w, `{"error":"Invalid or expired token"}`, http.StatusUnauthorized)
 				return
 			}
 

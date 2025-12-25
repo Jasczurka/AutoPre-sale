@@ -11,4 +11,5 @@ public interface IProjectRepository
     Task UpdateAsync(Project project);
     Task DeleteAsync(Guid id);
     Task<List<AnalysisResult>> GetAnalysisResultsByProjectIdAsync(Guid projectId);
+    Task DeleteAnalysisResultsByProjectIdAsync(Guid projectId);
 }
