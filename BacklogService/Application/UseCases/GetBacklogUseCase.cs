@@ -42,7 +42,7 @@ public class GetBacklogUseCase
             Id = work.Id,
             WorkNumber = work.WorkNumber,
             Level = work.Level,
-            Type = work.Type,
+            WorkType = work.WorkType,
             AcceptanceCriteria = work.AcceptanceCriteria,
             ChildWorks = work.ChildWorks?.Select(MapToDto).OrderBy(dto => ParseWorkNumber(dto.WorkNumber).Last()).ToList()
         };

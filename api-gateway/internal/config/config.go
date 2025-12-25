@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	Server  ServerConfig  `yaml:"server"`
-	Consul  ConsulConfig  `yaml:"consul"`
-	Logging LoggingConfig `yaml:"logging"`
-	JWT     JWTConfig     `yaml:"jwt"`
+	Server         ServerConfig      `yaml:"server"`
+	Consul         ConsulConfig      `yaml:"consul"`
+	Logging        LoggingConfig     `yaml:"logging"`
+	JWT            JWTConfig         `yaml:"jwt"`
+	ServiceMapping map[string]string `yaml:"service_mapping"`
 }
 
 type ServerConfig struct {

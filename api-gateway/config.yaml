@@ -6,6 +6,19 @@ consul:
   address: "consul:8500"
   datacenter: "dc1"
 
+# Service name mapping: path prefix -> consul service name
+service_mapping:
+  Auth: auth-service
+  auth-service: auth-service
+  Projects: project-service
+  project-service: project-service
+  Backlog: backlog-service
+  backlog-service: backlog-service
+  Templates: template-service
+  template-service: template-service
+  presentations: presentation-builder-service
+  presentation-builder-service: presentation-builder-service
+
 jwt:
   secret: "your-secret-key-change-in-production"
   auth_service: "auth-service"

@@ -39,7 +39,7 @@ func NewApp(configPath string) (*App, error) {
 		return nil, fmt.Errorf("failed to initialize Consul: %w", err)
 	}
 
-	proxyHandler := proxy.NewReverseProxy(consul, logger)
+	proxyHandler := proxy.NewReverseProxy(consul, logger, cfg.ServiceMapping)
 	jwtMiddleware := middleware.NewJWT(consul, cfg.JWT, logger)
 	r := router.NewRouter(proxyHandler, logger, jwtMiddleware)
 

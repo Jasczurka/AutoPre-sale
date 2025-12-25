@@ -66,7 +66,7 @@ public class ExportBacklogUseCase
                 Id = dto.Id,
                 WorkNumber = dto.WorkNumber,
                 Level = dto.Level,
-                Type = dto.Type,
+                WorkType = dto.WorkType,
                 AcceptanceCriteria = dto.AcceptanceCriteria,
                 ChildWorks = null
             });
@@ -88,7 +88,7 @@ public class ExportBacklogUseCase
         {
             w.WorkNumber,
             w.Level,
-            w.Type,
+            w.WorkType,
             w.AcceptanceCriteria
         }));
 
@@ -105,7 +105,7 @@ public class ExportBacklogUseCase
 
         worksheet.Cell(1, 1).Value = "WorkNumber";
         worksheet.Cell(1, 2).Value = "Level";
-        worksheet.Cell(1, 3).Value = "Type";
+        worksheet.Cell(1, 3).Value = "WorkType";
         worksheet.Cell(1, 4).Value = "AcceptanceCriteria";
 
         for (int i = 0; i < works.Count; i++)
@@ -113,7 +113,7 @@ public class ExportBacklogUseCase
             var work = works[i];
             worksheet.Cell(i + 2, 1).Value = work.WorkNumber;
             worksheet.Cell(i + 2, 2).Value = work.Level;
-            worksheet.Cell(i + 2, 3).Value = work.Type;
+            worksheet.Cell(i + 2, 3).Value = work.WorkType;
             worksheet.Cell(i + 2, 4).Value = work.AcceptanceCriteria;
         }
 

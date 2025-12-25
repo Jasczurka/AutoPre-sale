@@ -8,4 +8,5 @@ public class AnalysisResultDto
     public required AnalysisStatus Status { get; set; }
     public required DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public string? TkpUrl { get; set; }
 }

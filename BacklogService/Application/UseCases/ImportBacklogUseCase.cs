@@ -18,6 +18,14 @@ public class ImportBacklogUseCase
 
     public async Task<Result<Unit, ImportBacklogError>> Execute(Guid projectId, ImportBacklogDto dto)
     {
+        // Сначала удаляем все существующие работы для этого проекта
+        // Это предотвращает дубликаты при повторном импорте
+        var existingWorks = await _repo.GetHierarchyByProjectIdAsync(projectId);
+        var allExistingWorks = FlattenHierarchy(existingWorks).ToList();
+        if (allExistingWorks.Any())
+        {
+            await _repo.DeleteRangeAsync(allExistingWorks);
+        }
 
         var works = new List<Work>();
         var workMap = new Dictionary<string, Work>();
@@ -46,7 +54,7 @@ public class ImportBacklogUseCase
                 ProjectId = projectId,
                 WorkNumber = item.WorkNumber,
                 Level = parts.Length,
-                Type = item.WorkType,
+                WorkType = item.WorkType,
                 AcceptanceCriteria = item.AcceptanceCriteria,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -61,5 +69,21 @@ public class ImportBacklogUseCase
         await _repo.AddRangeAsync(works);
 
         return Result<Unit, ImportBacklogError>.Success(Unit.Value);
+    }
+
+    // Вспомогательный метод для "распрямления" иерархии работ в плоский список
+    private IEnumerable<Work> FlattenHierarchy(IEnumerable<Work> works)
+    {
+        foreach (var work in works)
+        {
+            yield return work;
+            if (work.ChildWorks != null && work.ChildWorks.Any())
+            {
+                foreach (var child in FlattenHierarchy(work.ChildWorks))
+                {
+                    yield return child;
+                }
+            }
+        }
     }
 }

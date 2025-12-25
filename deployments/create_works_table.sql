@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS "Works" (
     "ProjectId" uuid NOT NULL,
     "WorkNumber" text NOT NULL,
     "Level" integer NOT NULL,
-    "Type" text NOT NULL,
+    "WorkType" text NOT NULL,
     "AcceptanceCriteria" text,
     "CreatedAt" timestamp with time zone NOT NULL,
     "UpdatedAt" timestamp with time zone NOT NULL,

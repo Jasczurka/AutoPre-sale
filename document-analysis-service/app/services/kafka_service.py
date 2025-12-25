@@ -36,13 +36,14 @@ class KafkaService:
             logger.error(f"Unexpected error in consumer: {e}")
             raise
     
-    def publish_backlog_ready(self, project_id: str, analysis_id: str, backlog_items: list):
-        """Публикует событие BacklogReady с данными backlog"""
+    def publish_backlog_ready(self, project_id: str, analysis_id: str, backlog_items: list, tkp_url: str = None):
+        """Публикует событие BacklogReady с данными backlog и URL ТКП"""
         try:
             event = {
                 "project_id": project_id,
                 "analysis_id": analysis_id,
                 "status": "completed",
+                "tkp_url": tkp_url,
                 "backlog_table": [
                     {
                         "work_number": item.work_number,
@@ -54,7 +55,7 @@ class KafkaService:
             }
             self.producer.send(settings.kafka_topic_backlog_ready, value=event)
             self.producer.flush()
-            logger.info(f"Published BacklogReady event for project {project_id} with {len(backlog_items)} backlog items")
+            logger.info(f"Published BacklogReady event for project {project_id} with {len(backlog_items)} backlog items and TKP URL: {tkp_url}")
         except KafkaError as e:
             logger.error(f"Kafka producer error: {e}")
             raise

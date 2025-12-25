@@ -28,6 +28,7 @@ builder.Services.AddScoped<GetProjectByIdUseCase>();
 builder.Services.AddScoped<UploadProjectDocumentUseCase>();
 builder.Services.AddScoped<UpdateProjectUseCase>();
 builder.Services.AddScoped<DeleteProjectUseCase>();
+builder.Services.AddScoped<DownloadTkpUseCase>();
 
 // MinIO Configuration
 var minioEndpoint = Environment.GetEnvironmentVariable("MINIO_ENDPOINT") ?? throw new InvalidOperationException("MINIO_ENDPOINT is required");
@@ -43,6 +44,9 @@ var kafkaBootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_
 var kafkaTopicFileUploaded = Environment.GetEnvironmentVariable("KAFKA_TOPIC_FILE_UPLOADED") ?? "file-uploaded";
 
 builder.Services.AddSingleton<IEventBusService>(sp => new KafkaEventBusService(kafkaBootstrapServers, kafkaTopicFileUploaded));
+
+// Background service for consuming BacklogReady events
+builder.Services.AddHostedService<BacklogReadyConsumer>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

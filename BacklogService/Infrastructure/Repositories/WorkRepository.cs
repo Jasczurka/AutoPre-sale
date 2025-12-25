@@ -45,4 +45,10 @@ public class WorkRepository : IWorkRepository
         _context.Works.UpdateRange(works);
         await _context.SaveChangesAsync();
     }
+
+    public async Task DeleteRangeAsync(IEnumerable<Work> works)
+    {
+        _context.Works.RemoveRange(works);
+        await _context.SaveChangesAsync();
+    }
 }

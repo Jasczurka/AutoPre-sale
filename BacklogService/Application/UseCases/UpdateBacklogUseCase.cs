@@ -68,7 +68,7 @@ public class UpdateBacklogUseCase
             work.WorkNumber = dto.WorkNumber;
             var parts = dto.WorkNumber.Split('.');
             work.Level = parts.Length;
-            work.Type = dto.Type;
+            work.WorkType = dto.WorkType;
             work.AcceptanceCriteria = dto.AcceptanceCriteria;
             work.UpdatedAt = DateTime.UtcNow;
 
@@ -108,6 +108,14 @@ public class UpdateBacklogUseCase
 
         worksToUpdate = existingList.Where(w => w.UpdatedAt >= startTime).ToList();
         await _repo.UpdateRangeAsync(worksToUpdate);
+
+        // Удаляем работы, которых нет в запросе (были отфильтрованы на фронтенде)
+        var idsInRequest = new HashSet<Guid>(dtos.Select(d => d.Id));
+        var worksToDelete = existingList.Where(w => !idsInRequest.Contains(w.Id)).ToList();
+        if (worksToDelete.Any())
+        {
+            await _repo.DeleteRangeAsync(worksToDelete);
+        }
 
         return Result<Unit, UpdateBacklogError>.Success(Unit.Value);
     }
