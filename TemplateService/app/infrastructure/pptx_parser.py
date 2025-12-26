@@ -14,22 +14,28 @@ class PPTXParser:
     @staticmethod
     def _extract_placeholders_from_text(text: str) -> List[Dict[str, str]]:
         """
-        Извлекает плейсхолдеры из текста в формате {{name.label}}
+        Извлекает плейсхолдеры из текста в формате {{label.name}}
         
         Args:
             text: Текст для анализа
             
         Returns:
-            Список словарей с ключами: 'full', 'name', 'label'
+            Список словарей с ключами: 'placeholder' (полный текст), 'label', 'name'
+            
+        Примеры:
+            {{title.about_project}} -> label='title', name='about_project', placeholder='{{title.about_project}}'
+            {{subtitle.project_description}} -> label='subtitle', name='project_description'
+            {{list.project_goals}} -> label='list', name='project_goals'
+            {{text.project_description}} -> label='text', name='project_description'
         """
         pattern = r'\{\{([^.}]+)\.([^}]+)\}\}'
         placeholders = []
         
         for match in re.finditer(pattern, text):
             placeholders.append({
-                'full': match.group(0),  # {{title.about_project}}
-                'name': match.group(1).strip(),  # title
-                'label': match.group(2).strip()  # about_project
+                'placeholder': match.group(0),  # {{title.about_project}}
+                'label': match.group(1).strip(),  # title (тип поля)
+                'name': match.group(2).strip()  # about_project (имя поля)
             })
         
         return placeholders
@@ -168,10 +174,25 @@ class PPTXParser:
     
     @staticmethod
     def _extract_metadata(shape, block_type: str) -> Dict[str, Any]:
-        """Извлекает метаданные из shape"""
+        """
+        Извлекает метаданные из shape
+        
+        Включает:
+        - Информацию о шрифте (name, size, color, bold, italic, alignment)
+        - Позицию и размеры shape
+        - Placeholder информацию
+        """
         metadata = {
             "shape_type": str(shape.shape_type),
             "shape_name": shape.name if hasattr(shape, 'name') else None,
+        }
+        
+        # Сохраняем позицию и размеры (в EMU - English Metric Units)
+        metadata["position"] = {
+            "left": shape.left,
+            "top": shape.top,
+            "width": shape.width,
+            "height": shape.height
         }
         
         # Для текстовых блоков извлекаем информацию о шрифте
@@ -179,17 +200,32 @@ class PPTXParser:
             try:
                 if shape.text_frame.paragraphs:
                     first_para = shape.text_frame.paragraphs[0]
+                    
+                    # Извлекаем alignment параграфа
+                    metadata["alignment"] = str(first_para.alignment) if first_para.alignment else "LEFT"
+                    
                     if first_para.runs:
                         first_run = first_para.runs[0]
                         font = first_run.font
+                        
+                        # Извлекаем цвет шрифта
+                        font_color = None
+                        try:
+                            if font.color.type == 1:  # RGB
+                                rgb = font.color.rgb
+                                font_color = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+                        except:
+                            pass
+                        
                         metadata["font"] = {
                             "name": font.name,
                             "size": font.size.pt if font.size else None,
+                            "color": font_color,
                             "bold": font.bold,
                             "italic": font.italic,
                         }
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Error extracting font metadata: {e}")
         
         # Для placeholder'ов
         if hasattr(shape, 'is_placeholder') and shape.is_placeholder:

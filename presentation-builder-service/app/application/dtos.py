@@ -18,7 +18,11 @@ class CreatePresentationRequest(BaseModel):
 
 class AddSlideRequest(BaseModel):
     """Request to add a slide (optional, can be empty body)"""
-    layout_index: Optional[int] = Field(default=6, description="Slide layout index (6=blank)")
+    clone_from_index: Optional[int] = Field(default=0, description="Index of slide to clone (0=first slide, None=use blank layout)", alias="cloneFromIndex")
+    layout_index: Optional[int] = Field(default=6, description="Slide layout index (6=blank, used only when clone_from_index is None)", alias="layoutIndex")
+    
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase
 
 
 class AddBlockRequest(BaseModel):
@@ -86,6 +90,7 @@ class SlideResponse(BaseModel):
     order_index: int = Field(serialization_alias='orderIndex')
     created_at: datetime = Field(serialization_alias='createdAt')
     blocks: List[BlockResponse] = []  # Include blocks for frontend
+    slide_number: Optional[int] = Field(default=None, serialization_alias='slideNumber')  # Computed field
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -98,10 +103,13 @@ class SlideResponse(BaseModel):
     
     def model_dump(self, **kwargs):
         """Override model_dump to add slideNumber and use camelCase"""
-        # Use by_alias=True to convert to camelCase
-        data = super().model_dump(by_alias=True, **kwargs)
-        # Add computed slideNumber field
-        data['slideNumber'] = self.order_index + 1
+        # Set by_alias=True by default if not specified
+        if 'by_alias' not in kwargs:
+            kwargs['by_alias'] = True
+        data = super().model_dump(**kwargs)
+        # Add computed slideNumber field if not already set
+        if 'slideNumber' not in data or data['slideNumber'] is None:
+            data['slideNumber'] = self.order_index + 1
         return data
 
 

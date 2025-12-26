@@ -449,6 +449,10 @@ services:
       JWT_PUBLIC_KEY: MIIBCgKCAQEAy3wuQ1UkUrcEaxR+1gVEEUigRdJthoFenMC/BhpB7y5pelrpoNxdHhAWDuHwOYvj70ZuRxlf2I5Gl+nuVTFQG0P7uS7coVT2zcrzBZp5WNs5LzWea2f5GyFOCtFeXH4fMqfIJdJs+y8+o2luQx4OdZkPJ9sTuRTywDEd92smwY0kqAtLa1ejuFmvB207qCJNKYgvYpgDXdYA5tgZxtepozTTbEBkYk14XETmK2GOgIR3B8PixfEFM2EK6oIqrtKEh020h1FiYVZNWlDmvpwWJxgNoaDoCvAay7jGDwn76Gu8rqTkkHaodNZ5QPasHuk6xqhnMCcYh2NBo9+rV290rQIDAQAB
       JWT_ISSUER: AuthService
       JWT_AUDIENCE: ApiClients
+      # Master Template Configuration
+      # Оставьте пустым или закомментируйте для использования пустой презентации
+      # Укажите путь к шаблону в MinIO для использования мастер-шаблона
+      MASTER_TEMPLATE_URL: "templates/master/default.pptx"
     depends_on:
       postgres-presentation:
         condition: service_healthy

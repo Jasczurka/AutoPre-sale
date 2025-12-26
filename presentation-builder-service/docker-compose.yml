@@ -23,6 +23,10 @@ services:
       - CONSUL_PORT=8500
       - JWT_SECRET=your-secret-key-change-in-production
       - LOG_LEVEL=INFO
+      # Master Template Configuration
+      # Оставьте пустым для использования пустой презентации
+      # Укажите путь к шаблону в MinIO: templates/master/default.pptx
+      - MASTER_TEMPLATE_URL=
     depends_on:
       - postgres
       - minio

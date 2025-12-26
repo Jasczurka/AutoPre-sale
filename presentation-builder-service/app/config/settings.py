@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     TEMPLATE_SERVICE_NAME: str = Field(default="template-service")
     PROJECT_SERVICE_NAME: str = Field(default="project-service")
     
+    # Master Template Configuration
+    # Оставьте пустым для использования пустой презентации
+    # Укажите путь в MinIO для использования мастер-шаблона (например, "templates/master/default.pptx")
+    MASTER_TEMPLATE_URL: Optional[str] = Field(
+        default=None,
+        description="URL мастер-шаблона в MinIO bucket (относительный путь)"
+    )
+    
     # Logging
     LOG_LEVEL: str = Field(default="INFO")
     

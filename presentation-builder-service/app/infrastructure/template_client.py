@@ -91,6 +91,18 @@ class TemplateServiceClient:
             logger.error(f"Error downloading block PPTX {block_id}: {e}")
             return None
     
+    async def get_block_by_id(self, block_id: UUID) -> Optional[Dict[str, Any]]:
+        """
+        Get template block metadata (alias for get_template_block)
+        
+        Args:
+            block_id: UUID of the template block
+            
+        Returns:
+            Block metadata dictionary or None
+        """
+        return await self.get_template_block(block_id)
+    
     async def get_block_fields(self, block_id: UUID) -> list:
         """
         Get the list of fields (placeholders) for a block

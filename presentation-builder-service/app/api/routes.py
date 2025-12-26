@@ -58,7 +58,8 @@ async def create_presentation(
             token
         )
         response = PresentationResponse.model_validate(presentation)
-        return response.model_dump(mode='json')
+        # Use by_alias=True to return camelCase and include slides
+        return JSONResponse(content=response.model_dump(by_alias=True, mode='json'))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
@@ -121,9 +122,10 @@ async def add_slide(
     Downloads the current PPTX, adds a blank slide, and saves it back to MinIO.
     """
     try:
-        slide = use_case.add_slide(presentation_id, request.layout_index)
+        slide = use_case.add_slide(presentation_id, request.clone_from_index, request.layout_index)
         response = SlideResponse.model_validate(slide)
-        return response.model_dump(mode='json')
+        # Use by_alias=True to return camelCase
+        return JSONResponse(content=response.model_dump(by_alias=True, mode='json'))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:

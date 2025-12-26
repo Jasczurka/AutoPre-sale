@@ -213,14 +213,21 @@ class UploadTemplateBlockUseCase:
                 
                 if placeholders_found:
                     # Используем плейсхолдеры из текста
+                    # Формат: {{label.name}}
+                    # Пример: {{title.about_project}} -> label='title', name='about_project'
                     for ph in placeholders_found:
-                        field_key = ph['name']  # title
-                        placeholder = ph['full']  # {{title.about_project}}
-                        field_type = block_data.get("type", "text")
+                        # ВАЖНО: field_key должен быть уникальным!
+                        # Комбинируем label и name для уникальности
+                        # Например: "title_about_project" или "subtitle_project_description"
+                        # Это гарантирует, что {{title.Stack}} и {{subtitle.Stack}} будут разными полями
+                        field_key = f"{ph['label']}_{ph['name']}"  # title_Stack, subtitle_Stack
+                        placeholder = ph['placeholder']  # {{title.Stack}}
+                        field_type = ph['label']  # title (это тип/label поля)
                         
-                        # Создаем метаданные поля, включая информацию о позиции и схеме
+                        # Создаем метаданные поля, включая информацию о позиции и форматировании
                         metadata = {
-                            "label": ph['label'],  # about_project
+                            "label": ph['label'],  # title, subtitle, text, list и т.д.
+                            "original_name": ph['name'],  # Stack (оригинальное имя без label)
                             "slide_number": block_data.get("slide_number", 1),
                             "position": block_data.get("position", {}),
                             "size": block_data.get("size", {}),
@@ -231,7 +238,7 @@ class UploadTemplateBlockUseCase:
                         field = BlockField(
                             id=uuid4(),
                             block_id=block_id,
-                            field_key=field_key,
+                            field_key=field_key,  # Уникальный ключ: "title_Stack", "subtitle_Stack"
                             placeholder=placeholder,
                             type=field_type,
                             required=False,
@@ -240,6 +247,8 @@ class UploadTemplateBlockUseCase:
                         )
                         fields.append(field)
                         order_index += 1
+                        
+                        logger.debug(f"Created field: key={field_key}, placeholder={placeholder}, type={field_type}")
                 else:
                     # Старая логика для обратной совместимости (если плейсхолдеры не найдены)
                     field_key = block_data.get("key", f"field_{order_index}")
